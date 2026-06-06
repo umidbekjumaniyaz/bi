@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart City BI Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #161a24;
+      --surface2: #1e2433;
+      --border:   rgba(255,255,255,0.07);
+      --accent:   #3b82f6;
+      --accent2:  #6366f1;
+      --user-bg:  linear-gradient(135deg,#3b82f6 0%,#6366f1 100%);
+      --bot-bg:   #1e2433;
+      --text:     #e8eaf0;
+      --muted:    #6b7280;
+      --success:  #22c55e;
+      --danger:   #ef4444;
+      --radius:   16px;
+    }
+
+    html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif;
+                 background: var(--bg); color: var(--text); overflow: hidden; }
+
+    /* ── Layout ───────────────────────────────────────────────────── */
+    .app { display: grid; grid-template-rows: auto auto auto 1fr auto;
+           height: 100vh; max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+
+    /* ── Dashboard ────────────────────────────────────────────────── */
+    .dashboard {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+      padding: 16px 0; border-bottom: 1px solid var(--border);
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px; height: 180px;
+    }
+    .card h3 { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Header ───────────────────────────────────────────────────── */
+    header { display: flex; align-items: center; gap: 14px;
+             padding: 18px 0 14px; border-bottom: 1px solid var(--border); }
+
+    .header-icon { width: 42px; height: 42px; border-radius: 12px;
+                   background: var(--user-bg); display: grid; place-items: center;
+                   flex-shrink: 0; box-shadow: 0 0 30px rgba(59,130,246,.2); }
+    .header-icon svg { width: 20px; height: 20px; fill: white; }
+
+    .header-text h1 { font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
+    .header-text p  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .status { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+           transition: background .3s, box-shadow .3s; }
+    .dot.ok  { background: var(--success); box-shadow: 0 0 8px var(--success);
+               animation: pulse 2s infinite; }
+    .dot.err { background: var(--danger);  box-shadow: 0 0 8px var(--danger); }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    .status-label { font-size: 11px; color: var(--muted); }
+
+    /* ── Toolbar ──────────────────────────────────────────────────── */
+    .toolbar { display: flex; gap: 8px; align-items: center;
+               padding: 10px 0; border-bottom: 1px solid var(--border); }
+
+    .toolbar label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+    .toolbar input, .toolbar select {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--text);
+      font-family: 'Inter', sans-serif; outline: none; transition: border-color .2s;
+    }
+    .toolbar input { flex: 1; }
+    .toolbar select { flex-shrink: 0; cursor: pointer; }
+    .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+
+    .toolbar button {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 12px; font-size: 11px;
+      color: var(--muted); cursor: pointer; white-space: nowrap;
+      transition: all .2s;
+    }
+    .toolbar button:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── Messages ─────────────────────────────────────────────────── */
+    .messages { overflow-y: auto; padding: 24px 0; display: flex;
+                flex-direction: column; gap: 20px;
+                scrollbar-width: thin; scrollbar-color: var(--surface2) transparent; }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+
+    /* ── Message bubble ───────────────────────────────────────────── */
+    .msg { display: flex; gap: 12px; align-items: flex-end;
+           animation: msgIn .25s ease; }
+    .msg.user { flex-direction: row-reverse; }
+
+    @keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+    .avatar { width: 32px; height: 32px; border-radius: 10px; display: grid;
+              place-items: center; font-size: 14px; flex-shrink: 0; }
+    .msg.bot  .avatar { background: var(--surface2); }
+    .msg.user .avatar { background: var(--user-bg); }
+
+    .bubble { max-width: 72%; padding: 12px 16px; border-radius: var(--radius);
+              font-size: 14px; line-height: 1.65; word-break: break-word; }
+
+    .msg.bot  .bubble { background: var(--bot-bg); border: 1px solid var(--border);
+                        border-bottom-left-radius: 4px; }
+    .msg.user .bubble { background: var(--user-bg); border-bottom-right-radius: 4px;
+                        color: white; }
+
+    .time { font-size: 10px; color: var(--muted); margin-top: 6px; display: block; }
+    .msg.user .time { color: rgba(255,255,255,.5); text-align: right; }
+
+    /* ── Typing ───────────────────────────────────────────────────── */
+    .typing { display: flex; gap: 5px; align-items: center; padding: 2px 0; }
+    .typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+                   animation: bounce 1.2s infinite; }
+    .typing span:nth-child(2) { animation-delay: .15s; }
+    .typing span:nth-child(3) { animation-delay: .30s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+    /* ── Welcome ──────────────────────────────────────────────────── */
+    .welcome { margin: auto; text-align: center; padding: 32px 24px; }
+    .welcome .icon { font-size: 46px; display: block; margin-bottom: 14px;
+                     filter: drop-shadow(0 0 18px rgba(59,130,246,.4)); }
+    .welcome h2 { font-size: 21px; font-weight: 700; margin-bottom: 10px;
+                  background: linear-gradient(135deg,#60a5fa,#818cf8);
+                  -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .welcome p { font-size: 13px; color: var(--muted); max-width: 360px;
+                 margin: 0 auto 22px; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .chip { background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 20px; padding: 7px 14px; font-size: 12px;
+            cursor: pointer; color: var(--text); transition: all .2s; }
+    .chip:hover { background: var(--accent); border-color: var(--accent);
+                  color: white; transform: translateY(-1px);
+                  box-shadow: 0 4px 12px rgba(59,130,246,.3); }
+
+    /* ── Input ────────────────────────────────────────────────────── */
+    .input-area { padding: 14px 0 22px; border-top: 1px solid var(--border); }
+
+    .input-row { display: flex; gap: 10px; background: var(--surface);
+                 border: 1px solid var(--border); border-radius: 14px;
+                 padding: 8px 8px 8px 16px; transition: border-color .2s, box-shadow .2s; }
+    .input-row:focus-within { border-color: var(--accent);
+                              box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+
+    #msgInput { flex: 1; background: none; border: none; outline: none;
+                font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text);
+                resize: none; max-height: 120px; line-height: 1.5; }
+    #msgInput::placeholder { color: var(--muted); }
+
+    #sendBtn { width: 40px; height: 40px; border-radius: 10px; border: none;
+               background: var(--user-bg); cursor: pointer; display: grid;
+               place-items: center; transition: transform .15s, opacity .15s; flex-shrink: 0; }
+    #sendBtn:hover  { transform: scale(1.05); }
+    #sendBtn:active { transform: scale(.95); }
+    #sendBtn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    #sendBtn svg { width: 18px; height: 18px; fill: white; }
+
+    .hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; }
+
+    /* ── Error bubble ─────────────────────────────────────────────── */
+    .error-bubble { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3);
+                    border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #fca5a5; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="header-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
+    </div>
+    <div class="header-text">
+      <h1>Smart City BI Platform</h1>
+      <p>Mashinalar oqimi va transport monitoringi · Ollama</p>
+    </div>
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <span class="status-label" id="statusLabel">Ulanmagan</span>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <label>Server:</label>
+    <input type="text" id="apiEndpoint" value="http://localhost:8080" placeholder="http://localhost:8080" />
+    <label>Model:</label>
+    <select id="modelSelect"><option value="">— yuklanmoqda —</option></select>
+    <button onclick="loadModels()">🔄</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard">
+    <div class="card">
+      <h3>Transport Zichligi Dinamikasi</h3>
+      <canvas id="densityChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>O'tishlar Statistikasi</h3>
+      <canvas id="crossedChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <span class="icon">🏘️</span>
+      <h2>BI Dashboard & Chat</h2>
+      <p>Smart City loyihasi doirasida mashinalar oqimi haqida savol bering. Yuqoridagi grafiklar real vaqtda yangilanadi.</p>
+      <div class="chips">
+        <div class="chip" onclick="sendChip(this)">Hozirgi zichlik qanday?</div>
+        <div class="chip" onclick="sendChip(this)">Mashinalar oqimi tahlili</div>
+        <div class="chip" onclick="sendChip(this)">BI Insights ma'lumotlari</div>
+        <div class="chip" onclick="sendChip(this)">YOLO detection tahlili</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-row">
+      <textarea id="msgInput" rows="1" placeholder="Savol yozing…" maxlength="3000"></textarea>
+      <button id="sendBtn" onclick="sendMessage()" title="Yuborish (Enter)">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
+    </div>
+    <p class="hint">Enter — yuborish &nbsp;·&nbsp; Shift+Enter — yangi qator</p>
+  </div>
+
+</div>
+
+<script>
+  // ── State ────────────────────────────────────────────────────────────────────
+  const chatHistory = [];
+  let isLoading = false;
+  let densityChart, crossedChart;
+
+  // ── Charts Init ─────────────────────────────────────────────────────────────
+  function initCharts() {
+    const ctx1 = document.getElementById('densityChart').getContext('2d');
+    densityChart = new Chart(ctx1, {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: 'Mashinalar', data: [], borderColor: '#3b82f6', tension: 0.4, fill: true, backgroundColor: 'rgba(59,130,246,0.1)' }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } } } }
+    });
+
+    const ctx2 = document.getElementById('crossedChart').getContext('2d');
+    crossedChart = new Chart(ctx2, {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Mashina o\'tishlari', data: [], backgroundColor: '#6366f1', borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } } } }
+    });
+  }
+
+  async function updateCharts() {
+    try {
+      const res = await fetch(base() + '/history');
+      const data = await res.json();
+      if (!data || data.length === 0) return;
+
+      const labels = data.map(d => new Date(d.time).toLocaleTimeString());
+      const counts = data.map(d => d.count);
+      const crossed = data.map(d => d.crossed);
+
+      densityChart.data.labels = labels;
+      densityChart.data.datasets[0].data = counts;
+      densityChart.update('none');
+
+      crossedChart.data.labels = labels;
+      crossedChart.data.datasets[0].data = crossed;
+      crossedChart.update('none');
+    } catch (e) { console.error('Chart update error:', e); }
+  }
+
+  // ── DOM refs ─────────────────────────────────────────────────────────────────
+  const msgInput    = document.getElementById('msgInput');
+  const messagesEl  = document.getElementById('messages');
+  const sendBtn     = document.getElementById('sendBtn');
+  const welcome     = document.getElementById('welcome');
+  const dot         = document.getElementById('dot');
+  const statusLabel = document.getElementById('statusLabel');
+  const apiEndpoint = document.getElementById('apiEndpoint');
+  const modelSelect = document.getElementById('modelSelect');
+
+  // ── Auto-resize textarea ─────────────────────────────────────────────────────
+  msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+  });
+
+  msgInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+  const now = () => new Date().toLocaleTimeString('uz', {hour:'2-digit', minute:'2-digit'});
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const base = () => (apiEndpoint.value.trim() || 'http://localhost:8080').replace(/\/+$/, '');
+
+  function hideWelcome() { if (welcome) welcome.style.display = 'none'; }
+  function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+  function setStatus(state) {
+    dot.className = 'dot ' + (state === 'ok' ? 'ok' : state === 'err' ? 'err' : '');
+    statusLabel.textContent = state === 'ok' ? 'Ulangan' : state === 'err' ? 'Xato' : 'Ulanmagan';
+  }
+
+  function appendMessage(role, content) {
+    hideWelcome();
+    const el = document.createElement('div');
+    el.className = `msg ${role}`;
+    const isUser = role === 'user';
+    el.innerHTML = `
+      <div class="avatar">${isUser ? '👤' : '🤖'}</div>
+      <div class="bubble">
+        ${esc(content).replace(/\n/g, '<br>')}
+        <span class="time">${now()}</span>
+      </div>`;
+    messagesEl.appendChild(el);
+    scrollBottom();
+  }
+
+  function appendError(text) {
+    hideWelcome();
+    const el = document.createElement('div');
+    el.className = 'msg bot';
+    el.innerHTML = `
+      <div class="avatar">⚠️</div>
+      <div class="error-bubble">${esc(text).replace(/\n/g,'<br>')}</div>`;
+    messagesEl.appendChild(el);
+    scrollBottom();
+  }
+
+  function showTyping() {
+    hideWelcome();
+    const el = document.createElement('div');
+    el.className = 'msg bot'; el.id = 'typing';
+    el.innerHTML = `
+      <div class="avatar">🤖</div>
+      <div class="bubble">
+        <div class="typing"><span></span><span></span><span></span></div>
+      </div>`;
+    messagesEl.appendChild(el);
+    scrollBottom();
+  }
+
+  function hideTyping() { const e = document.getElementById('typing'); if (e) e.remove(); }
+
+  // ── Load models ─────────────────────────────────────────────────────────────
+  async function loadModels() {
+    modelSelect.innerHTML = '<option value="">yuklanmoqda…</option>';
+    try {
+      var res = await fetch(base() + '/models');
+      var data = await res.json();
+      var list = data.models || [];
+      if (list.length === 0) {
+        modelSelect.innerHTML = '<option value="">Model topilmadi</option>';
+        return;
+      }
+      modelSelect.innerHTML = list.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+      setStatus('ok');
+    } catch (e) {
+      modelSelect.innerHTML = '<option value="">Ulanish xatosi</option>';
+      setStatus('err');
+    }
+  }
+
+  // ── Send message ─────────────────────────────────────────────────────────────
+  async function sendMessage() {
+    var text = msgInput.value.trim();
+    if (!text || isLoading) return;
+
+    isLoading = true;
+    sendBtn.disabled = true;
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+
+    appendMessage('user', text);
+    chatHistory.push({ role: 'user', content: text });
+    showTyping();
+
+    try {
+      var res = await fetch(base() + '/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: chatHistory.slice(-12),
+          model:   modelSelect.value || undefined
+        })
+      });
+
+      var data = await res.json();
+      hideTyping();
+      appendMessage('bot', data.reply || "Xatolik yuz berdi");
+      chatHistory.push({ role: 'assistant', content: data.reply });
+      setStatus('ok');
+    } catch (err) {
+      hideTyping();
+      appendError('Xato: ' + err.message);
+      setStatus('err');
+    }
+    isLoading = false;
+    sendBtn.disabled = false;
+  }
+
+  function sendChip(el) { msgInput.value = el.textContent; sendMessage(); }
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+  apiEndpoint.addEventListener('change', loadModels);
+  initCharts();
+  loadModels();
+  setInterval(updateCharts, 5000);
+</script>
+</body>
+</html>

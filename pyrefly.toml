@@ -1,0 +1,2 @@
+[project]
+python_environment = ".venv"

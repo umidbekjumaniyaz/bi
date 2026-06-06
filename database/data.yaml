@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 4
+names: ['car', 'motorcycle', 'truck', 'van']
+
+roboflow:
+  workspace: umidbek-jumaniyaz
+  project: my-first-project-ckfom
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/umidbek-jumaniyaz/my-first-project-ckfom/dataset/2
