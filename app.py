@@ -12,6 +12,7 @@ from ultralytics import YOLO
 DEFAULT_SOURCE = "https://www.youtube.com/live/6dp-bvQ7RWo?si=44fxPf_rSiDNAYIw"
 MAX_RETRIES = 5
 TARGET_CLASS_NAME = "car"
+DEFAULT_MIN_CAR_ASPECT = 0.8
 STATS_FILE = Path("stats.json")
 HISTORY_FILE = Path("history.json")
 STATS_EVERY = 30                  # write stats every N frames
@@ -169,6 +170,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--iou",        type=float, default=0.45)
     p.add_argument("--imgsz",      type=int,   default=1280)
     p.add_argument("--frame-skip", type=int,   default=1)
+    p.add_argument(
+        "--min-car-aspect",
+        type=float,
+        default=DEFAULT_MIN_CAR_ASPECT,
+        help="Reject narrow vertical detections (width / height, default 0.8)",
+    )
     p.add_argument("--loop",       action="store_true",
                    help="Loop local video when it ends")
     # Line endpoints as fractions (0–1) of frame size
@@ -187,6 +194,14 @@ def resolve_target_class_id(model: YOLO) -> int:
         if str(name).lower() == TARGET_CLASS_NAME:
             return int(class_id)
     raise RuntimeError(f"Model does not contain a '{TARGET_CLASS_NAME}' class: {model.names}")
+
+
+def is_car_shaped(box: np.ndarray, min_aspect: float) -> bool:
+    """Reject narrow vertical boxes that are commonly false-positive people."""
+    x1, y1, x2, y2 = (float(value) for value in box)
+    width = max(0.0, x2 - x1)
+    height = max(0.0, y2 - y1)
+    return height > 0.0 and width / height >= min_aspect
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -271,9 +286,17 @@ def main() -> None:
                     verbose=False,
                 )[0]
 
-                last_annotated = result.plot(conf=False, line_width=2)
-
                 boxes = result.boxes
+                if boxes:
+                    keep_indices = [
+                        index
+                        for index, box in enumerate(boxes.xyxy)
+                        if is_car_shaped(box, args.min_car_aspect)
+                    ]
+                    result.boxes = boxes[keep_indices]
+                    boxes = result.boxes
+
+                last_annotated = result.plot(conf=False, line_width=2)
                 cars_in_scene = len(boxes) if boxes else 0
                 if boxes.id is not None:
                     active_ids: set[int] = set()
